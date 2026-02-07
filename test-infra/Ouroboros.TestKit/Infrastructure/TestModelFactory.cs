@@ -8,7 +8,6 @@ using Ouroboros.Domain;
 using Ouroboros.Providers;
 using Ouroboros.Tests.Mocks;
 using Ouroboros.Tools;
-using Xunit;
 
 /// <summary>
 /// Factory for creating model instances in tests.
@@ -77,7 +76,7 @@ public static class TestModelFactory
     {
         if (!UsesRealModels)
         {
-            Assert.Skip(
+            throw new InvalidOperationException(
                 "Test requires real models. Set TEST_USE_CLOUD_MODEL=true or TEST_USE_LOCAL_MODEL=true");
         }
     }
