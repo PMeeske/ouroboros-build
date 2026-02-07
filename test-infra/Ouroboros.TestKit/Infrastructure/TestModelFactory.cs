@@ -76,7 +76,7 @@ public static class TestModelFactory
     {
         if (!UsesRealModels)
         {
-            throw new Xunit.SkipException(
+            Assert.Skip(
                 "Test requires real models. Set TEST_USE_CLOUD_MODEL=true or TEST_USE_LOCAL_MODEL=true");
         }
     }
