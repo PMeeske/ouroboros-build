@@ -8,6 +8,7 @@ using Ouroboros.Domain;
 using Ouroboros.Providers;
 using Ouroboros.Tests.Mocks;
 using Ouroboros.Tools;
+using Xunit;
 
 /// <summary>
 /// Factory for creating model instances in tests.
