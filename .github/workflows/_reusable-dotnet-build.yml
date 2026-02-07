@@ -1,0 +1,131 @@
+# Reusable workflow for .NET build
+# Handles building .NET projects with proper error handling and caching
+
+name: Reusable .NET Build
+
+on:
+  workflow_call:
+    inputs:
+      configuration:
+        description: 'Build configuration (Debug/Release)'
+        required: false
+        type: string
+        default: 'Release'
+      projects:
+        description: 'Space-separated list of project paths to build (empty = build solution)'
+        required: false
+        type: string
+        default: ''
+      solution:
+        description: 'Solution file to build (used when projects is empty)'
+        required: false
+        type: string
+        default: ''
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      include-maui:
+        description: 'Install MAUI workloads before building'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      build-status:
+        description: 'Build status (success/failure)'
+        value: ${{ jobs.build.outputs.status }}
+
+jobs:
+  build:
+    name: Build .NET Projects
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    outputs:
+      status: ${{ steps.set-status.outputs.status }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3  # v4.0.0
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Install MAUI workloads
+        if: inputs.include-maui
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e  # v3.0.0
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            dotnet workload install maui-android maui-tizen --skip-sign-check --verbosity detailed
+            dotnet workload list
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-build-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-build-
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e  # v3.0.0
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: dotnet restore --verbosity normal
+
+      - name: Build specified projects
+        id: build
+        if: inputs.projects != ''
+        run: |
+          echo "Building specified projects..."
+          for project in ${{ inputs.projects }}; do
+            echo "Building: $project"
+            dotnet build --configuration ${{ inputs.configuration }} --no-restore "$project"
+          done
+        timeout-minutes: 15
+
+      - name: Build solution
+        id: build-solution
+        if: inputs.projects == ''
+        run: |
+          SOLUTION="${{ inputs.solution }}"
+          if [ -n "$SOLUTION" ]; then
+            echo "Building solution: $SOLUTION"
+            dotnet build --configuration ${{ inputs.configuration }} --no-restore "$SOLUTION"
+          else
+            echo "Building default solution..."
+            dotnet build --configuration ${{ inputs.configuration }} --no-restore
+          fi
+        timeout-minutes: 15
+
+      - name: Set build status
+        id: set-status
+        if: always()
+        run: |
+          if [ "${{ steps.build.outcome }}" != "" ] && [ "${{ steps.build.outcome }}" != "skipped" ]; then
+            echo "status=${{ steps.build.outcome }}" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.build-solution.outcome }}" != "" ] && [ "${{ steps.build-solution.outcome }}" != "skipped" ]; then
+            echo "status=${{ steps.build-solution.outcome }}" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          STATUS="${{ steps.set-status.outputs.status }}"
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Configuration**: ${{ inputs.configuration }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: $STATUS" >> $GITHUB_STEP_SUMMARY

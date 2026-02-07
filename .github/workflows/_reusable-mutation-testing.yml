@@ -1,0 +1,184 @@
+# Reusable workflow for Stryker.NET mutation testing
+# Generalized from mutation-testing.yml to work across sub-repos
+
+name: Reusable Mutation Testing
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: 'Path to the project to mutate'
+        required: true
+        type: string
+      test-project:
+        description: 'Path to the test project'
+        required: true
+        type: string
+      config-file:
+        description: 'Path to stryker config file'
+        required: false
+        type: string
+        default: ''
+      mutation-level:
+        description: 'Mutation level (Standard, Complete, or Basic)'
+        required: false
+        type: string
+        default: 'Standard'
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      category:
+        description: 'Category name for artifact naming'
+        required: false
+        type: string
+        default: 'default'
+      timeout-minutes:
+        description: 'Timeout for mutation testing step'
+        required: false
+        type: number
+        default: 100
+    outputs:
+      mutation-score:
+        description: 'Mutation score percentage'
+        value: ${{ jobs.mutation-test.outputs.score }}
+      report-found:
+        description: 'Whether a mutation report was generated'
+        value: ${{ jobs.mutation-test.outputs.report_found }}
+
+jobs:
+  mutation-test:
+    name: Mutation Tests (${{ inputs.category }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    outputs:
+      score: ${{ steps.mutation-score.outputs.mutation_score }}
+      report_found: ${{ steps.mutation-score.outputs.report_found }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@4d6c8fcf3c8f7a60068d26b594648e99df24cee3  # v4.0.0
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-mutation-${{ inputs.category }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-mutation-${{ inputs.category }}-
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e  # v3.0.0
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: dotnet restore
+
+      - name: Restore dotnet tools
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e  # v3.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 10
+          command: dotnet tool restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release --no-restore
+        timeout-minutes: 15
+
+      - name: Run mutation tests
+        id: mutation-test
+        timeout-minutes: ${{ inputs.timeout-minutes }}
+        run: |
+          ML="${{ inputs.mutation-level }}"
+          echo "Running mutation tests for ${{ inputs.category }} with level: ${ML}"
+          echo "Target project: ${{ inputs.project }}"
+
+          STRYKER_ARGS="--project ${{ inputs.project }}"
+          STRYKER_ARGS="$STRYKER_ARGS --mutation-level ${ML}"
+          STRYKER_ARGS="$STRYKER_ARGS --max-concurrent-test-runners 4"
+
+          if [ -n "${{ inputs.config-file }}" ]; then
+            STRYKER_ARGS="$STRYKER_ARGS --config-file ${{ inputs.config-file }}"
+          fi
+
+          eval dotnet stryker $STRYKER_ARGS
+
+      - name: Extract mutation score
+        id: mutation-score
+        if: always()
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          REPORT=$(find . -name "mutation-report.json" -type f 2>/dev/null | sort -r | head -n 1)
+
+          if [ -f "$REPORT" ]; then
+            echo "Found mutation report: $REPORT"
+            SCORE=$(jq -r '.thresholds.high // .mutationScore // "N/A"' "$REPORT" 2>/dev/null || echo "N/A")
+            echo "mutation_score=${SCORE}" >> $GITHUB_OUTPUT
+            echo "report_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No mutation report found"
+            echo "report_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Display mutation test summary
+        if: always()
+        run: |
+          echo "## Mutation Testing Summary (${{ inputs.category }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          FOUND="${{ steps.mutation-score.outputs.report_found }}"
+          if [ "$FOUND" = "true" ]; then
+            echo "Mutation testing completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Category: ${{ inputs.category }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Project: ${{ inputs.project }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Mutation Level: ${{ inputs.mutation-level }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Mutation testing did not complete or reports missing." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload mutation report HTML
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
+        if: always()
+        continue-on-error: true
+        with:
+          name: mutation-report-html-${{ inputs.category }}
+          path: |
+            StrykerOutput/**/reports/mutation-report.html
+            **/mutation-report.html
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload mutation report JSON
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
+        if: always()
+        continue-on-error: true
+        with:
+          name: mutation-report-json-${{ inputs.category }}
+          path: |
+            StrykerOutput/**/mutation-report.json
+            **/mutation-report.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Check mutation threshold
+        if: steps.mutation-test.outcome == 'failure'
+        run: |
+          echo "::error::Mutation testing failed or threshold not met for ${{ inputs.category }}"
+          exit 1

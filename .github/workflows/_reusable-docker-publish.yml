@@ -1,0 +1,113 @@
+# Reusable workflow for Docker build and push
+# Generalized from ionos-deploy.yml to work with any registry
+
+name: Reusable Docker Publish
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry URL'
+        required: true
+        type: string
+      image-name:
+        description: 'Image name (without registry prefix)'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to Dockerfile'
+        required: false
+        type: string
+        default: './Dockerfile'
+      context:
+        description: 'Docker build context'
+        required: false
+        type: string
+        default: '.'
+      tag-suffix:
+        description: 'Additional tag suffix (e.g., "-cli", "-webapi")'
+        required: false
+        type: string
+        default: ''
+      platforms:
+        description: 'Target platforms for multi-arch build'
+        required: false
+        type: string
+        default: 'linux/amd64'
+    secrets:
+      registry-username:
+        description: 'Registry username'
+        required: true
+      registry-password:
+        description: 'Registry password'
+        required: true
+    outputs:
+      image-tag:
+        description: 'Full image tag that was pushed'
+        value: ${{ jobs.build-and-push.outputs.image-tag }}
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.full-tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          submodules: recursive
+
+      - name: Validate registry credentials
+        run: |
+          if [ -z "${{ secrets.registry-username }}" ] || [ -z "${{ secrets.registry-password }}" ]; then
+            echo "Error: Registry credentials not configured"
+            exit 1
+          fi
+          echo "Registry credentials are configured"
+
+      - name: Login to Container Registry
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20  # v3.1.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry-username }}
+          password: ${{ secrets.registry-password }}
+        timeout-minutes: 5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@2b51285047da1547ffb1b2203d8be4c0af6b1f20  # v3.2.0
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          FULL_IMAGE="${{ inputs.registry }}/${{ inputs.image-name }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "full-tag=${FULL_IMAGE}:${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "${FULL_IMAGE}:latest" >> $GITHUB_OUTPUT
+          echo "${FULL_IMAGE}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "${FULL_IMAGE}:${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0  # v5.3.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ inputs.platforms }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        timeout-minutes: 25
+
+      - name: Push summary
+        run: |
+          echo "## Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ inputs.registry }}/${{ inputs.image-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: latest, ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile**: ${{ inputs.dockerfile }}" >> $GITHUB_STEP_SUMMARY
