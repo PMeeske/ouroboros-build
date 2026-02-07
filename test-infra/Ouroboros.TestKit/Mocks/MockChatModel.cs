@@ -2,7 +2,7 @@
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
-namespace Ouroboros.TestKit.Mocks;
+namespace Ouroboros.Tests.Mocks;
 
 using Ouroboros.Providers;
 

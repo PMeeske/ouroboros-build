@@ -16,6 +16,9 @@
     <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
     <RunAnalyzersDuringLiveAnalysis>false</RunAnalyzersDuringLiveAnalysis>
     <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- Path to ouroboros-build root (parent of this build/ directory) -->
+    <OuroborosBuild>$(MSBuildThisFileDirectory)..</OuroborosBuild>
   </PropertyGroup>
 
   <!-- Include shared global usings for all projects (except test projects and Roslynator) -->
