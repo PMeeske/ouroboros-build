@@ -5,6 +5,7 @@
 namespace Ouroboros.Tests.Mocks;
 
 using Ouroboros.Agent.MetaAI;
+using Ouroboros.Core.Monads;
 
 /// <summary>
 /// Mock implementation of ISkillRegistry for testing purposes.

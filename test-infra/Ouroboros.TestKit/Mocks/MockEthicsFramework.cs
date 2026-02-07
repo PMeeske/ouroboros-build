@@ -5,6 +5,7 @@
 namespace Ouroboros.Tests.Mocks;
 
 using Ouroboros.Core.Ethics;
+using Ouroboros.Core.Monads;
 
 /// <summary>
 /// Mock implementation of IEthicsFramework for testing purposes.
