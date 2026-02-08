@@ -104,7 +104,25 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: dotnet restore
+          command: |
+            if [ -n "${{ inputs.build-projects }}" ]; then
+              echo "Restoring build projects..."
+              for project in ${{ inputs.build-projects }}; do
+                echo "Restoring: $project"
+                dotnet restore "$project"
+              done
+            fi
+            if [ -n "${{ inputs.test-projects }}" ]; then
+              echo "Restoring test projects..."
+              for project in ${{ inputs.test-projects }}; do
+                echo "Restoring: $project"
+                dotnet restore "$project"
+              done
+            fi
+            if [ -z "${{ inputs.build-projects }}" ] && [ -z "${{ inputs.test-projects }}" ]; then
+              echo "Restoring all projects..."
+              dotnet restore
+            fi
 
       - name: Build source projects
         if: inputs.build-projects != ''

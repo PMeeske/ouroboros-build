@@ -82,7 +82,20 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: dotnet restore --verbosity normal
+          command: |
+            if [ -n "${{ inputs.projects }}" ]; then
+              echo "Restoring specified projects..."
+              for project in ${{ inputs.projects }}; do
+                echo "Restoring: $project"
+                dotnet restore "$project" --verbosity normal
+              done
+            elif [ -n "${{ inputs.solution }}" ]; then
+              echo "Restoring solution: ${{ inputs.solution }}"
+              dotnet restore "${{ inputs.solution }}" --verbosity normal
+            else
+              echo "Restoring default solution..."
+              dotnet restore --verbosity normal
+            fi
 
       - name: Build specified projects
         id: build
