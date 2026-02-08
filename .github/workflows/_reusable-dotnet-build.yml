@@ -113,16 +113,23 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
+          shell: bash
           command: |
             # Handle parent directory references by creating a solution file
             echo "Discovering .csproj files..."
-
-            if [ -n "${{ inputs.projects }}" ]; then
+            
+            PROJECTS="${{ inputs.projects }}"
+            
+            if [ -n "$PROJECTS" ]; then
               echo "Restoring specified projects..."
-
+              echo "Projects input: $PROJECTS"
+              
               # First, try to restore each project individually
               SUCCESS=true
-              for project in ${{ inputs.projects }}; do
+              while IFS= read -r project; do
+                # Skip empty lines
+                [ -z "$project" ] && continue
+                
                 echo "Restoring: $project"
                 if [ -f "$project" ]; then
                   dotnet restore "$project" --verbosity normal || {
@@ -133,18 +140,19 @@ jobs:
                   echo "Project file not found: $project"
                   SUCCESS=false
                 fi
-              done
+              done <<< "$PROJECTS"
 
               # If any project failed, create a solution and restore via solution
               if [ "$SUCCESS" = false ]; then
                 echo "Creating temporary solution for dependency resolution..."
                 dotnet new sln -n TempBuild -o .
 
-                for project in ${{ inputs.projects }}; do
+                while IFS= read -r project; do
+                  [ -z "$project" ] && continue
                   if [ -f "$project" ]; then
                     dotnet sln TempBuild.sln add "$project" 2>/dev/null || echo "Could not add $project to solution"
                   fi
-                done
+                done <<< "$PROJECTS"
 
                 # Find and add any referenced projects from parent directories
                 echo "Scanning for project references..."
@@ -188,10 +196,13 @@ jobs:
         if: inputs.projects != ''
         run: |
           echo "Building specified projects..."
-          for project in ${{ inputs.projects }}; do
+          PROJECTS="${{ inputs.projects }}"
+          while IFS= read -r project; do
+            # Skip empty lines
+            [ -z "$project" ] && continue
             echo "Building: $project"
             dotnet build --configuration ${{ inputs.configuration }} --no-restore "$project"
-          done
+          done <<< "$PROJECTS"
         timeout-minutes: 15
 
       - name: Build solution
