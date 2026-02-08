@@ -126,7 +126,7 @@ jobs:
               
               # First, try to restore each project individually
               SUCCESS=true
-              while IFS= read -r project; do
+              for project in $PROJECTS; do
                 # Skip empty lines
                 [ -z "$project" ] && continue
                 
@@ -140,19 +140,19 @@ jobs:
                   echo "Project file not found: $project"
                   SUCCESS=false
                 fi
-              done <<< "$PROJECTS"
+              done
 
               # If any project failed, create a solution and restore via solution
               if [ "$SUCCESS" = false ]; then
                 echo "Creating temporary solution for dependency resolution..."
                 dotnet new sln -n TempBuild -o .
 
-                while IFS= read -r project; do
+                for project in $PROJECTS; do
                   [ -z "$project" ] && continue
                   if [ -f "$project" ]; then
                     dotnet sln TempBuild.sln add "$project" 2>/dev/null || echo "Could not add $project to solution"
                   fi
-                done <<< "$PROJECTS"
+                done
 
                 # Find and add any referenced projects from parent directories
                 echo "Scanning for project references..."
@@ -197,12 +197,12 @@ jobs:
         run: |
           echo "Building specified projects..."
           PROJECTS="${{ inputs.projects }}"
-          while IFS= read -r project; do
+          for project in $PROJECTS; do
             # Skip empty lines
             [ -z "$project" ] && continue
             echo "Building: $project"
             dotnet build --configuration ${{ inputs.configuration }} --no-restore "$project"
-          done <<< "$PROJECTS"
+          done
         timeout-minutes: 15
 
       - name: Build solution
