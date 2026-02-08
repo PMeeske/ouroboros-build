@@ -4,6 +4,45 @@
 name: Reusable Mutation Testing
 
 on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Path to the project to mutate'
+        required: true
+        type: string
+      test-project:
+        description: 'Path to the test project'
+        required: true
+        type: string
+      config-file:
+        description: 'Path to stryker config file'
+        required: false
+        type: string
+        default: ''
+      mutation-level:
+        description: 'Mutation level (Standard, Complete, or Basic)'
+        required: false
+        type: choice
+        options:
+          - Standard
+          - Complete
+          - Basic
+        default: 'Standard'
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      category:
+        description: 'Category name for artifact naming'
+        required: false
+        type: string
+        default: 'default'
+      timeout-minutes:
+        description: 'Timeout for mutation testing step'
+        required: false
+        type: number
+        default: 100
   workflow_call:
     inputs:
       project:

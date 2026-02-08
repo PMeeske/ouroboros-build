@@ -14,6 +14,8 @@ Shared build infrastructure for the Ouroboros project family. This repo is the "
 
 ## Reusable Workflows
 
+All reusable workflows support both `workflow_call` (called from other workflows) and `workflow_dispatch` (manual trigger via the GitHub Actions UI).
+
 | Workflow | Description |
 |----------|-------------|
 | `_reusable-dotnet-setup.yml` | .NET SDK installation, NuGet caching, optional MAUI workloads |
@@ -21,6 +23,17 @@ Shared build infrastructure for the Ouroboros project family. This repo is the "
 | `_reusable-dotnet-test.yml` | Run tests with coverage collection and reporting |
 | `_reusable-mutation-testing.yml` | Stryker.NET mutation testing with configurable thresholds |
 | `_reusable-docker-publish.yml` | Docker build and push to any container registry |
+
+### Manual Trigger
+
+Each workflow can be triggered manually from the **Actions** tab in GitHub:
+
+1. Navigate to the **Actions** tab of this repository
+2. Select the desired workflow from the left sidebar
+3. Click **Run workflow**
+4. Fill in the required inputs and click **Run workflow**
+
+> **Note:** For `_reusable-docker-publish.yml`, the registry credentials (`registry-username` and `registry-password`) must be configured as repository secrets.
 
 ## Usage
 

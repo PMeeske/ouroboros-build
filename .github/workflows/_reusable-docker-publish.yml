@@ -4,6 +4,36 @@
 name: Reusable Docker Publish
 
 on:
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: 'Container registry URL'
+        required: true
+        type: string
+      image-name:
+        description: 'Image name (without registry prefix)'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to Dockerfile'
+        required: false
+        type: string
+        default: './Dockerfile'
+      context:
+        description: 'Docker build context'
+        required: false
+        type: string
+        default: '.'
+      tag-suffix:
+        description: 'Additional tag suffix (e.g., "-cli", "-webapi")'
+        required: false
+        type: string
+        default: ''
+      platforms:
+        description: 'Target platforms for multi-arch build'
+        required: false
+        type: string
+        default: 'linux/amd64'
   workflow_call:
     inputs:
       registry:

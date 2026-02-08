@@ -4,6 +4,50 @@
 name: Reusable .NET Test
 
 on:
+  workflow_dispatch:
+    inputs:
+      test-projects:
+        description: 'Glob pattern or space-separated list of test project paths'
+        required: true
+        type: string
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      configuration:
+        description: 'Build configuration'
+        required: false
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: 'Release'
+      coverage-threshold:
+        description: 'Minimum coverage percentage (0 to disable)'
+        required: false
+        type: number
+        default: 60
+      include-maui:
+        description: 'Install MAUI workloads'
+        required: false
+        type: boolean
+        default: false
+      test-filter:
+        description: 'Optional test filter expression'
+        required: false
+        type: string
+        default: ''
+      runsettings-path:
+        description: 'Path to coverlet .runsettings file'
+        required: false
+        type: string
+        default: ''
+      build-projects:
+        description: 'Space-separated list of source projects to build before testing (avoids TreatWarningsAsErrors on test projects)'
+        required: false
+        type: string
+        default: ''
   workflow_call:
     inputs:
       test-projects:

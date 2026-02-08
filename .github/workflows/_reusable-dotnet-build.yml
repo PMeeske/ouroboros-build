@@ -4,6 +4,36 @@
 name: Reusable .NET Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build configuration (Debug/Release)'
+        required: false
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: 'Release'
+      projects:
+        description: 'Space-separated list of project paths to build (empty = build solution)'
+        required: false
+        type: string
+        default: ''
+      solution:
+        description: 'Solution file to build (used when projects is empty)'
+        required: false
+        type: string
+        default: ''
+      dotnet-version:
+        description: '.NET SDK version'
+        required: false
+        type: string
+        default: '10.0.x'
+      include-maui:
+        description: 'Install MAUI workloads before building'
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       configuration:
