@@ -1,0 +1,166 @@
+# Reusable workflow for updating git submodule pointers
+# Automatically updates submodule to latest commit from tracked branch
+
+name: Reusable Update Submodule
+
+on:
+  workflow_dispatch:
+    inputs:
+      submodule-path:
+        description: 'Path to the submodule (e.g., .build or libs/foundation)'
+        required: true
+        type: string
+      submodule-branch:
+        description: 'Branch to track in the submodule'
+        required: false
+        type: string
+        default: 'main'
+      create-pr:
+        description: 'Whether to create a PR instead of direct push'
+        required: false
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      submodule-path:
+        description: 'Path to the submodule (e.g., .build or libs/foundation)'
+        required: true
+        type: string
+      submodule-branch:
+        description: 'Branch to track in the submodule'
+        required: false
+        type: string
+        default: 'main'
+      create-pr:
+        description: 'Whether to create a PR instead of direct push'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      token:
+        description: 'PAT with repo write access'
+        required: true
+    outputs:
+      submodule-updated:
+        description: 'Whether the submodule was updated'
+        value: ${{ jobs.update-submodule.outputs.updated }}
+      old-sha:
+        description: 'Previous submodule commit SHA (short)'
+        value: ${{ jobs.update-submodule.outputs.old-sha }}
+      new-sha:
+        description: 'New submodule commit SHA (short)'
+        value: ${{ jobs.update-submodule.outputs.new-sha }}
+
+jobs:
+  update-submodule:
+    name: Update Submodule
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      updated: ${{ steps.check-update.outputs.updated }}
+      old-sha: ${{ steps.check-update.outputs.old-sha }}
+      new-sha: ${{ steps.check-update.outputs.new-sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.token }}
+          submodules: true
+          fetch-depth: 0
+
+      - name: Check and update submodule
+        id: check-update
+        run: |
+          set -e
+
+          SUBMODULE_PATH="${{ inputs.submodule-path }}"
+          SUBMODULE_BRANCH="${{ inputs.submodule-branch }}"
+
+          echo "Checking submodule at: $SUBMODULE_PATH"
+          echo "Tracking branch: $SUBMODULE_BRANCH"
+
+          # Verify submodule path exists
+          if [ ! -d "$SUBMODULE_PATH" ]; then
+            echo "Error: Submodule path does not exist: $SUBMODULE_PATH"
+            exit 1
+          fi
+
+          # Get current submodule SHA
+          cd "$SUBMODULE_PATH"
+          OLD_SHA=$(git rev-parse HEAD | cut -c1-7)
+          echo "Current SHA: $OLD_SHA"
+
+          # Fetch latest from tracked branch
+          echo "Fetching latest from origin/$SUBMODULE_BRANCH..."
+          git fetch origin "$SUBMODULE_BRANCH"
+
+          # Get latest SHA from tracked branch
+          LATEST_SHA=$(git rev-parse "origin/$SUBMODULE_BRANCH" | cut -c1-7)
+          echo "Latest SHA: $LATEST_SHA"
+
+          # Compare SHAs
+          if [ "$OLD_SHA" = "$LATEST_SHA" ]; then
+            echo "Submodule is already up to date"
+            echo "updated=false" >> $GITHUB_OUTPUT
+            echo "old-sha=$OLD_SHA" >> $GITHUB_OUTPUT
+            echo "new-sha=$OLD_SHA" >> $GITHUB_OUTPUT
+            echo "SUBMODULE_UPDATED=false" >> $GITHUB_ENV
+          else
+            echo "Submodule has updates available"
+            echo "Checking out $LATEST_SHA..."
+            git checkout "origin/$SUBMODULE_BRANCH"
+
+            # Return to repo root
+            cd -
+
+            # Stage the submodule update
+            git add "$SUBMODULE_PATH"
+
+            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "old-sha=$OLD_SHA" >> $GITHUB_OUTPUT
+            echo "new-sha=$LATEST_SHA" >> $GITHUB_OUTPUT
+            echo "SUBMODULE_UPDATED=true" >> $GITHUB_ENV
+            echo "OLD_SHA=$OLD_SHA" >> $GITHUB_ENV
+            echo "NEW_SHA=$LATEST_SHA" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: steps.check-update.outputs.updated == 'true' && inputs.create-pr
+        uses: peter-evans/create-pull-request@70a41aba780001da0a30141984ae2a0c95d8704e  # v6.0.2
+        with:
+          token: ${{ secrets.token }}
+          commit-message: 'chore: update submodule ${{ inputs.submodule-path }} (${{ env.OLD_SHA }} → ${{ env.NEW_SHA }})'
+          branch: 'auto/update-submodule-${{ inputs.submodule-path }}'
+          delete-branch: true
+          title: 'chore: update submodule `${{ inputs.submodule-path }}`'
+          body: |
+            ## Submodule Update
+
+            Automated update of submodule at `${{ inputs.submodule-path }}`
+
+            - **Branch**: `${{ inputs.submodule-branch }}`
+            - **Previous SHA**: `${{ env.OLD_SHA }}`
+            - **New SHA**: `${{ env.NEW_SHA }}`
+
+            This PR was automatically generated by the update-submodule workflow.
+          labels: |
+            dependencies
+            automated
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Submodule Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Submodule Path**: \`${{ inputs.submodule-path }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ inputs.submodule-branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Updated**: ${{ steps.check-update.outputs.updated }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check-update.outputs.updated }}" = "true" ]; then
+            echo "- **Old SHA**: \`${{ steps.check-update.outputs.old-sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **New SHA**: \`${{ steps.check-update.outputs.new-sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Create PR**: ${{ inputs.create-pr }}" >> $GITHUB_STEP_SUMMARY
+          fi
