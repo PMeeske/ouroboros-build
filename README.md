@@ -23,6 +23,7 @@ All reusable workflows support both `workflow_call` (called from other workflows
 | `_reusable-dotnet-test.yml` | Run tests with coverage collection and reporting |
 | `_reusable-mutation-testing.yml` | Stryker.NET mutation testing with configurable thresholds |
 | `_reusable-docker-publish.yml` | Docker build and push to any container registry |
+| `_reusable-update-submodule.yml` | Automatically update git submodule pointers to latest upstream commits |
 
 ### Manual Trigger
 
@@ -76,6 +77,31 @@ jobs:
       test-projects: 'tests/**/*.csproj'
       coverage-threshold: 60
 ```
+
+### Auto-Update Submodules
+
+To automatically update submodule pointers when upstream dependencies change, downstream repos can call the workflow from a `repository_dispatch` event or `workflow_dispatch`:
+
+```yaml
+name: Update Submodule
+
+on:
+  repository_dispatch:
+    types: [upstream-updated]
+  workflow_dispatch:
+
+jobs:
+  update-build-submodule:
+    uses: PMeeske/ouroboros-build/.github/workflows/_reusable-update-submodule.yml@main
+    with:
+      submodule-path: '.build'
+      submodule-branch: 'main'
+      create-pr: true
+    secrets:
+      token: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+```
+
+This creates a PR when the submodule has new commits available.
 
 ## Dependency Hierarchy
 
