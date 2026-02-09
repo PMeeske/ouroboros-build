@@ -1,0 +1,15 @@
+<Project>
+  <!-- Import base build config from our own build/ directory -->
+  <Import Project="$(MSBuildThisFileDirectory)build\Directory.Build.props" />
+
+  <PropertyGroup>
+    <!-- Cross-layer paths: meta-repo layout (when ouroboros-build is .build submodule) -->
+    <OuroborosFoundation Condition="Exists('$(MSBuildThisFileDirectory)..\foundation\src')">$(MSBuildThisFileDirectory)..\foundation\src</OuroborosFoundation>
+    <OuroborosEngine Condition="Exists('$(MSBuildThisFileDirectory)..\engine\src')">$(MSBuildThisFileDirectory)..\engine\src</OuroborosEngine>
+    <OuroborosApp Condition="Exists('$(MSBuildThisFileDirectory)..\app\src')">$(MSBuildThisFileDirectory)..\app\src</OuroborosApp>
+    <!-- Cross-layer paths: standalone layout (peer checkouts) -->
+    <OuroborosFoundation Condition="'$(OuroborosFoundation)' == '' AND Exists('$(MSBuildThisFileDirectory)..\ouroboros-foundation\src')">$(MSBuildThisFileDirectory)..\ouroboros-foundation\src</OuroborosFoundation>
+    <OuroborosEngine Condition="'$(OuroborosEngine)' == '' AND Exists('$(MSBuildThisFileDirectory)..\ouroboros-engine\src')">$(MSBuildThisFileDirectory)..\ouroboros-engine\src</OuroborosEngine>
+    <OuroborosApp Condition="'$(OuroborosApp)' == '' AND Exists('$(MSBuildThisFileDirectory)..\ouroboros-app\src')">$(MSBuildThisFileDirectory)..\ouroboros-app\src</OuroborosApp>
+  </PropertyGroup>
+</Project>
