@@ -127,13 +127,22 @@ jobs:
             echo "NEW_SHA=$LATEST_SHA" >> $GITHUB_ENV
           fi
 
+      - name: Prepare branch name
+        id: branch-name
+        if: steps.check-update.outputs.updated == 'true' && inputs.create-pr
+        run: |
+          SUBMODULE_PATH="${{ inputs.submodule-path }}"
+          # Replace slashes and other problematic characters with dashes
+          SAFE_NAME=$(echo "$SUBMODULE_PATH" | sed 's/[\/.]/-/g')
+          echo "safe-name=$SAFE_NAME" >> $GITHUB_OUTPUT
+
       - name: Create Pull Request
         if: steps.check-update.outputs.updated == 'true' && inputs.create-pr
         uses: peter-evans/create-pull-request@70a41aba780001da0a30141984ae2a0c95d8704e  # v6.0.2
         with:
           token: ${{ secrets.token }}
           commit-message: 'chore: update submodule ${{ inputs.submodule-path }} (${{ env.OLD_SHA }} → ${{ env.NEW_SHA }})'
-          branch: 'auto/update-submodule-${{ inputs.submodule-path }}'
+          branch: 'auto/update-submodule-${{ steps.branch-name.outputs.safe-name }}'
           delete-branch: true
           title: 'chore: update submodule `${{ inputs.submodule-path }}`'
           body: |
