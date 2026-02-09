@@ -206,7 +206,6 @@ jobs:
                 eval dotnet test $TEST_ARGS "$project"
               fi
             done
-        continue-on-error: true
 
       - name: Parse test results
         id: test-results
@@ -228,7 +227,6 @@ jobs:
       - name: Upload test results
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
-        continue-on-error: true
         with:
           name: test-results
           path: TestResults/*.trx
@@ -237,7 +235,6 @@ jobs:
       - name: Upload coverage results
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
-        continue-on-error: true
         with:
           name: coverage-data
           path: TestResults/*/coverage.cobertura.xml
@@ -246,7 +243,6 @@ jobs:
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e  # v2.16.1
         if: always()
-        continue-on-error: true
         with:
           files: TestResults/**/*.trx
           check_name: Unit Tests
@@ -268,7 +264,6 @@ jobs:
         with:
           name: coverage-data
           path: TestResults
-        continue-on-error: true
 
       - name: Install ReportGenerator
         uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e  # v3.0.0
@@ -332,7 +327,6 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
-        continue-on-error: true
         with:
           name: coverage-report
           path: CoverageReport/
