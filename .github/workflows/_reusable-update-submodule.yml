@@ -57,6 +57,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    permissions:
+      contents: write
+      pull-requests: write
+
     outputs:
       updated: ${{ steps.check-update.outputs.updated }}
       old-sha: ${{ steps.check-update.outputs.old-sha }}
