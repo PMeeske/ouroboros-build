@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ''
+      job-identifier:
+        description: 'Unique identifier for this job invocation (used in artifact names)'
+        required: false
+        type: string
+        default: ''
   workflow_call:
     inputs:
       test-projects:
@@ -86,6 +91,11 @@ on:
         default: ''
       build-projects:
         description: 'Space-separated list of source projects to build before testing (avoids TreatWarningsAsErrors on test projects)'
+        required: false
+        type: string
+        default: ''
+      job-identifier:
+        description: 'Unique identifier for this job invocation (used in artifact names)'
         required: false
         type: string
         default: ''
@@ -232,7 +242,7 @@ jobs:
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
         with:
-          name: test-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: test-results-${{ inputs.job-identifier != '' && format('{0}-', inputs.job-identifier) || '' }}${{ github.run_id }}-${{ github.run_attempt }}
           path: TestResults/*.trx
           retention-days: 30
 
@@ -240,7 +250,7 @@ jobs:
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
         with:
-          name: coverage-data-run-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          name: coverage-data-${{ inputs.job-identifier != '' && format('{0}-', inputs.job-identifier) || '' }}${{ github.run_id }}-${{ github.run_attempt }}
           path: TestResults/*/coverage.cobertura.xml
           retention-days: 30
 
@@ -266,7 +276,7 @@ jobs:
       - name: Download coverage artifacts
         uses: actions/download-artifact@87c55149d96e628cc2ef7e6fc2aab372015aec85  # v4.1.8
         with:
-          name: coverage-data-run-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          name: coverage-data-${{ inputs.job-identifier != '' && format('{0}-', inputs.job-identifier) || '' }}${{ github.run_id }}-${{ github.run_attempt }}
           path: TestResults
 
       - name: Install ReportGenerator
@@ -332,6 +342,6 @@ jobs:
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3  # v4.3.1
         if: always()
         with:
-          name: coverage-report-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: coverage-report-${{ inputs.job-identifier != '' && format('{0}-', inputs.job-identifier) || '' }}${{ github.run_id }}-${{ github.run_attempt }}
           path: CoverageReport/
           retention-days: 30
