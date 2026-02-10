@@ -1,0 +1,48 @@
+# Claude-powered issue triage and analysis
+# Automatically analyzes new issues and provides initial triage:
+#   - Labels suggestion based on content
+#   - Identifies related code areas
+#   - Suggests potential assignees based on code ownership
+#   - Flags duplicates when possible
+
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    name: Triage Issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-20250514
+          direct_prompt: |
+            Triage this newly opened issue. Read CLAUDE.md for project context.
+
+            Provide a brief analysis:
+            1. **Category** — Bug, Feature Request, Documentation, CI/CD, Question, or Other
+            2. **Affected area** — Which directory/workflow/component is likely involved
+            3. **Suggested labels** — From: bug, enhancement, documentation, ci, question, good-first-issue, help-wanted
+            4. **Related files** — Search the codebase and list files likely relevant to this issue
+            5. **Priority signal** — Is this blocking (breaks CI/builds), important (affects functionality), or minor (cosmetic/docs)?
+
+            If the issue is unclear, ask clarifying questions.
+            If it looks like a duplicate, mention the potentially related area but do not close it.
+
+            Keep the response concise and structured.
+          allowed_tools: "Bash,Read,Glob,Grep"

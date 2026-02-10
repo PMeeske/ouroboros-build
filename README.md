@@ -24,6 +24,44 @@ All reusable workflows support both `workflow_call` (called from other workflows
 | `_reusable-mutation-testing.yml` | Stryker.NET mutation testing with configurable thresholds |
 | `_reusable-docker-publish.yml` | Docker build and push to any container registry |
 | `_reusable-update-submodule.yml` | Automatically update git submodule pointers to latest upstream commits |
+| `_reusable-claude-review.yml` | Claude-powered PR code review with configurable depth and custom instructions |
+
+### Claude AI Workflows
+
+These workflows integrate Claude into the PR and issue lifecycle. They require an `ANTHROPIC_API_KEY` repository secret.
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `claude-code-review.yml` | PR opened / updated | Automated code review on every pull request |
+| `claude-pr-assistant.yml` | `@claude` mention in comments | Interactive assistant for PR and issue discussions |
+| `claude-issue-triage.yml` | Issue opened | Automatic issue categorization and triage |
+
+#### Setup
+
+1. Add your Anthropic API key as a repository secret named `ANTHROPIC_API_KEY`
+2. The workflows activate automatically — no additional configuration needed
+
+#### Using the PR Assistant
+
+Mention `@claude` in any PR or issue comment to interact:
+
+```
+@claude explain the retry logic in this workflow
+@claude suggest tests for this change
+@claude is this change safe to deploy?
+```
+
+#### Calling the Reusable Review from Sub-Repos
+
+```yaml
+jobs:
+  claude-review:
+    uses: PMeeske/ouroboros-build/.github/workflows/_reusable-claude-review.yml@main
+    with:
+      review-level: 'standard'
+    secrets:
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
 
 ### Manual Trigger
 

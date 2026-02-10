@@ -1,0 +1,38 @@
+# Interactive Claude assistant for PR and issue comments
+# Responds when users mention @claude in comments on PRs or issues
+# Supports: code explanations, refactoring suggestions, test generation, debugging help
+
+name: Claude PR Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  respond:
+    name: Claude Assistant
+    runs-on: ubuntu-latest
+    if: >-
+      contains(github.event.comment.body, '@claude') &&
+      !github.event.comment.performed_via_github_app
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Response
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-20250514
+          trigger_phrase: "@claude"
+          allowed_tools: "Bash,Read,Glob,Grep,Edit,Write"
