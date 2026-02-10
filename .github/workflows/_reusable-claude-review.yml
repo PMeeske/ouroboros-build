@@ -1,0 +1,110 @@
+# Reusable workflow for Claude-powered PR code review
+# Provides automated code review using Claude Code Action
+# Called by sub-repos to get consistent AI-assisted reviews across all Ouroboros projects
+
+name: Reusable Claude Code Review
+
+on:
+  workflow_call:
+    inputs:
+      review-level:
+        description: 'Review depth: quick (comments only), standard (comments + suggestions), thorough (full analysis)'
+        required: false
+        type: string
+        default: 'standard'
+      max-comments:
+        description: 'Maximum number of review comments to post (0 = unlimited)'
+        required: false
+        type: number
+        default: 20
+      allowed-tools:
+        description: 'Comma-separated list of allowed Claude tools (empty = default set)'
+        required: false
+        type: string
+        default: ''
+      custom-instructions:
+        description: 'Additional review instructions appended to the base prompt'
+        required: false
+        type: string
+        default: ''
+      model:
+        description: 'Claude model to use'
+        required: false
+        type: string
+        default: 'claude-sonnet-4-20250514'
+    secrets:
+      anthropic-api-key:
+        description: 'Anthropic API key for Claude'
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropic-api-key }}
+          model: ${{ inputs.model }}
+          direct_prompt: |
+            You are reviewing a pull request for the Ouroboros project (.NET 10 / C# 14).
+
+            Review level: ${{ inputs.review-level }}
+
+            ## Review Checklist
+
+            ### Code Quality
+            - Verify adherence to .editorconfig rules (no var for built-ins, modifier ordering, expression-bodied members)
+            - Check nullable reference type usage
+            - Ensure monadic error handling (Result<T>, Option<T>) instead of exceptions for control flow
+            - Verify immutability preferences (records, ImmutableList, readonly)
+            - Check Kleisli arrow composition patterns (Step<TInput, TOutput>)
+
+            ### Testing
+            - Verify all functional changes include tests
+            - Check test naming convention: Should_<Expected>_When_<Condition>
+            - Validate proper use of shared mocks from Ouroboros.TestKit
+            - Ensure no test code leaks into production assemblies
+
+            ### CI/CD & Workflows (if YAML changes)
+            - Validate YAML syntax and workflow_call / workflow_dispatch inputs
+            - Check that reusable workflows remain generic across sub-repos
+            - Verify action versions are pinned (no @main or @latest)
+            - Ensure secrets are not exposed in logs
+            - Validate job dependency chains
+
+            ### Security
+            - No hardcoded secrets, tokens, or connection strings
+            - Proper input validation at system boundaries
+            - No command injection vectors in workflow run steps
+            - OWASP top 10 awareness for any API-touching code
+
+            ### Documentation
+            - README tables updated for new workflows
+            - XML documentation on new public APIs
+            - Inline comments where logic is non-obvious
+
+            ### Conventional Commits
+            - PR title follows: <type>(<scope>): <subject>
+            - Valid types: feat, fix, docs, style, refactor, test, chore, ci
+
+            ${{ inputs.custom-instructions }}
+
+            Provide actionable, specific feedback. Reference line numbers. Suggest fixes when possible.
+            If the PR looks good, say so briefly — do not invent problems.
+          allowed_tools: ${{ inputs.allowed-tools || 'Bash,Read,Glob,Grep,WebFetch' }}
