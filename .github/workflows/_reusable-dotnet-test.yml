@@ -49,7 +49,7 @@ on:
         type: string
         default: ''
       job-identifier:
-        description: 'Unique identifier for this job invocation (used in artifact names)'
+        description: 'Unique identifier for this workflow invocation (used in artifact names)'
         required: false
         type: string
         default: ''
@@ -95,7 +95,7 @@ on:
         type: string
         default: ''
       job-identifier:
-        description: 'Unique identifier for this job invocation (used in artifact names)'
+        description: 'Unique identifier for this workflow invocation (used in artifact names)'
         required: false
         type: string
         default: ''
