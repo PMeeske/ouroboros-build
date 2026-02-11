@@ -24,8 +24,22 @@
     <ProjectReference Include="$(OuroborosFoundation)\Ouroboros.Core\Ouroboros.Core.csproj" />
     <ProjectReference Include="$(OuroborosFoundation)\Ouroboros.Domain\Ouroboros.Domain.csproj" />
     <ProjectReference Include="$(OuroborosFoundation)\Ouroboros.Tools\Ouroboros.Tools.csproj" />
+  </ItemGroup>
+
+  <!-- Engine-layer references - only when engine is available -->
+  <ItemGroup Condition="'$(OuroborosEngine)' != ''">
     <ProjectReference Include="$(OuroborosEngine)\Ouroboros.Providers\Ouroboros.Providers.csproj" />
     <ProjectReference Include="$(OuroborosEngine)\Ouroboros.Agent\Ouroboros.Agent.csproj" />
+  </ItemGroup>
+
+  <!-- Exclude engine-dependent mocks when engine is not available -->
+  <ItemGroup Condition="'$(OuroborosEngine)' == ''">
+    <Compile Remove="Mocks\MockChatModel.cs" />
+    <Compile Remove="Mocks\MockMemoryStore.cs" />
+    <Compile Remove="Mocks\MockSafetyGuard.cs" />
+    <Compile Remove="Mocks\MockSkillRegistry.cs" />
+    <Compile Remove="Mocks\MockUncertaintyRouter.cs" />
+    <Compile Remove="Infrastructure\TestModelFactory.cs" />
   </ItemGroup>
 
 </Project>
