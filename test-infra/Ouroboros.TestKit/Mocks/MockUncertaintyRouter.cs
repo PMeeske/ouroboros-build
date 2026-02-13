@@ -4,6 +4,7 @@
 
 namespace Ouroboros.Tests.Mocks;
 
+using Ouroboros.Abstractions.Monads;
 using Ouroboros.Agent.MetaAI;
 using Ouroboros.Core.Monads;
 

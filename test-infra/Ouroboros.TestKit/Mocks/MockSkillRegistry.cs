@@ -4,6 +4,7 @@
 
 namespace Ouroboros.Tests.Mocks;
 
+using Ouroboros.Abstractions.Monads;
 using Ouroboros.Agent.MetaAI;
 using Ouroboros.Core.Monads;
 
@@ -132,7 +133,7 @@ public sealed class MockSkillRegistry : ISkillRegistry
     /// Extracts and registers a skill from an execution result.
     /// </summary>
     public Task<Result<Skill, string>> ExtractSkillAsync(
-        ExecutionResult execution,
+        PlanExecutionResult execution,
         string skillName,
         string description)
     {
