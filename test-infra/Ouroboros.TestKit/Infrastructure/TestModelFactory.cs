@@ -4,10 +4,11 @@
 
 namespace Ouroboros.Tests.Infrastructure;
 
+using Ouroboros.Abstractions.Core;
 using Ouroboros.Domain;
 using Ouroboros.Providers;
 using Ouroboros.Tests.Mocks;
-using Ouroboros.Tools;
+using ToolRegistry = Ouroboros.Tools.ToolRegistry;
 
 /// <summary>
 /// Factory for creating model instances in tests.

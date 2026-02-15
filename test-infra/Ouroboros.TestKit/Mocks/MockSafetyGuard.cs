@@ -13,7 +13,6 @@ using Ouroboros.Agent.MetaAI;
 public sealed class MockSafetyGuard : ISafetyGuard
 {
     private readonly Dictionary<string, Permission> permissions = new();
-    private readonly Func<string, Dictionary<string, object>, PermissionLevel, SafetyCheckResult>? checkFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MockSafetyGuard"/> class.
@@ -21,15 +20,6 @@ public sealed class MockSafetyGuard : ISafetyGuard
     /// </summary>
     public MockSafetyGuard()
     {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MockSafetyGuard"/> class with custom check logic.
-    /// </summary>
-    /// <param name="checkFactory">Factory function for safety checks.</param>
-    public MockSafetyGuard(Func<string, Dictionary<string, object>, PermissionLevel, SafetyCheckResult> checkFactory)
-    {
-        this.checkFactory = checkFactory;
     }
 
     /// <summary>
@@ -43,39 +33,55 @@ public sealed class MockSafetyGuard : ISafetyGuard
     public string? LastCheckedOperation { get; private set; }
 
     /// <summary>
-    /// Checks if an operation is safe to execute.
+    /// Checks if an action is safe to execute (async with parameters and context).
     /// </summary>
-    public SafetyCheckResult CheckSafety(
-        string operation,
-        Dictionary<string, object> parameters,
-        PermissionLevel currentLevel)
+    public Task<SafetyCheckResult> CheckActionSafetyAsync(
+        string actionName,
+        IReadOnlyDictionary<string, object> parameters,
+        object? context = null,
+        CancellationToken ct = default)
     {
         this.CheckCallCount++;
-        this.LastCheckedOperation = operation;
-
-        if (this.checkFactory != null)
-        {
-            return this.checkFactory(operation, parameters, currentLevel);
-        }
-
-        // Default: everything is safe at ReadOnly level
-        return new SafetyCheckResult(
-            Safe: true,
-            Violations: new List<string>(),
-            Warnings: new List<string>(),
-            RequiredLevel: PermissionLevel.ReadOnly);
+        this.LastCheckedOperation = actionName;
+        return Task.FromResult(SafetyCheckResult.Allowed($"Mock: action '{actionName}' is allowed"));
     }
 
     /// <summary>
-    /// Validates if tool execution is permitted.
+    /// Checks safety of an action (async with permission level).
     /// </summary>
-    public bool IsToolExecutionPermitted(
-        string toolName,
-        string arguments,
-        PermissionLevel currentLevel)
+    public Task<SafetyCheckResult> CheckSafetyAsync(
+        string action,
+        PermissionLevel permissionLevel,
+        CancellationToken ct = default)
     {
-        // Default: allow all tool executions
-        return true;
+        this.CheckCallCount++;
+        this.LastCheckedOperation = action;
+        return Task.FromResult(SafetyCheckResult.Allowed($"Mock: action '{action}' is allowed"));
+    }
+
+    /// <summary>
+    /// Checks if an operation is safe to execute (sync).
+    /// </summary>
+    public SafetyCheckResult CheckSafety(
+        string action,
+        Dictionary<string, object> parameters,
+        PermissionLevel permissionLevel)
+    {
+        this.CheckCallCount++;
+        this.LastCheckedOperation = action;
+        return SafetyCheckResult.Allowed($"Mock: action '{action}' is allowed");
+    }
+
+    /// <summary>
+    /// Sandboxes a plan step for safe execution (async).
+    /// </summary>
+    public Task<SandboxResult> SandboxStepAsync(PlanStep step, CancellationToken ct = default)
+    {
+        return Task.FromResult(new SandboxResult(
+            Success: true,
+            SandboxedStep: step,
+            Restrictions: Array.Empty<string>(),
+            Error: null));
     }
 
     /// <summary>
@@ -88,12 +94,27 @@ public sealed class MockSafetyGuard : ISafetyGuard
     }
 
     /// <summary>
-    /// Gets required permission level for an action.
+    /// Checks if an agent has the required permissions.
     /// </summary>
-    public PermissionLevel GetRequiredPermission(string action)
+    public Task<bool> CheckPermissionsAsync(
+        string agentId,
+        IReadOnlyList<Permission> permissions,
+        CancellationToken ct = default)
     {
-        // Default: ReadOnly for all actions
-        return PermissionLevel.ReadOnly;
+        // Default: all permissions are granted
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// Assesses the risk level of an action.
+    /// </summary>
+    public Task<double> AssessRiskAsync(
+        string actionName,
+        IReadOnlyDictionary<string, object> parameters,
+        CancellationToken ct = default)
+    {
+        // Default: low risk
+        return Task.FromResult(0.1);
     }
 
     /// <summary>
@@ -101,7 +122,7 @@ public sealed class MockSafetyGuard : ISafetyGuard
     /// </summary>
     public void RegisterPermission(Permission permission)
     {
-        this.permissions[permission.Name] = permission;
+        this.permissions[permission.Resource] = permission;
     }
 
     /// <summary>

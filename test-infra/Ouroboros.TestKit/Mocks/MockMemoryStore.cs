@@ -4,6 +4,8 @@
 
 namespace Ouroboros.Tests.Mocks;
 
+using Ouroboros.Abstractions;
+using Ouroboros.Abstractions.Monads;
 using Ouroboros.Agent.MetaAI;
 
 /// <summary>
@@ -12,7 +14,7 @@ using Ouroboros.Agent.MetaAI;
 /// </summary>
 public sealed class MockMemoryStore : IMemoryStore
 {
-    private readonly Dictionary<Guid, Experience> experiences = new();
+    private readonly Dictionary<string, Experience> experiences = new();
     private readonly Func<MemoryQuery, List<Experience>>? retrievalFactory;
 
     /// <summary>
@@ -54,18 +56,29 @@ public sealed class MockMemoryStore : IMemoryStore
     /// <summary>
     /// Stores an experience in memory.
     /// </summary>
-    public Task StoreExperienceAsync(Experience experience, CancellationToken ct = default)
+    public Task<Result<Unit, string>> StoreExperienceAsync(Experience experience, CancellationToken ct = default)
     {
         this.StoreCallCount++;
         this.LastStoredExperience = experience;
         this.experiences[experience.Id] = experience;
-        return Task.CompletedTask;
+        return Task.FromResult(Result<Unit, string>.Success(Unit.Value));
+    }
+
+    /// <summary>
+    /// Queries experiences based on query criteria.
+    /// </summary>
+    public Task<Result<IReadOnlyList<Experience>, string>> QueryExperiencesAsync(
+        MemoryQuery query,
+        CancellationToken ct = default)
+    {
+        var results = FilterExperiences(query);
+        return Task.FromResult(Result<IReadOnlyList<Experience>, string>.Success(results));
     }
 
     /// <summary>
     /// Retrieves relevant experiences based on query.
     /// </summary>
-    public Task<List<Experience>> RetrieveRelevantExperiencesAsync(
+    public Task<Result<IReadOnlyList<Experience>, string>> RetrieveRelevantExperiencesAsync(
         MemoryQuery query,
         CancellationToken ct = default)
     {
@@ -73,61 +86,61 @@ public sealed class MockMemoryStore : IMemoryStore
 
         if (this.retrievalFactory != null)
         {
-            return Task.FromResult(this.retrievalFactory(query));
+            IReadOnlyList<Experience> factoryResult = this.retrievalFactory(query);
+            return Task.FromResult(Result<IReadOnlyList<Experience>, string>.Success(factoryResult));
         }
 
-        // Default: return all experiences matching the goal (case-insensitive partial match)
-        var results = this.experiences.Values
-            .Where(e => e.Goal.Contains(query.Goal, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(e => e.Timestamp)
-            .Take(query.MaxResults)
-            .ToList();
-
-        return Task.FromResult(results);
-    }
-
-    /// <summary>
-    /// Gets statistics about stored experiences.
-    /// </summary>
-    public Task<MemoryStatistics> GetStatisticsAsync()
-    {
-        var successful = this.experiences.Values.Count(e => e.Execution.Success);
-        var failed = this.experiences.Values.Count(e => !e.Execution.Success);
-        var avgQuality = this.experiences.Values.Any()
-            ? this.experiences.Values.Average(e => e.Verification.QualityScore)
-            : 0.0;
-
-        var goalCounts = this.experiences.Values
-            .GroupBy(e => e.Goal)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        var stats = new MemoryStatistics(
-            this.experiences.Count,
-            successful,
-            failed,
-            avgQuality,
-            goalCounts);
-
-        return Task.FromResult(stats);
-    }
-
-    /// <summary>
-    /// Clears all stored experiences.
-    /// </summary>
-    public Task ClearAsync(CancellationToken ct = default)
-    {
-        this.experiences.Clear();
-        this.LastStoredExperience = null;
-        return Task.CompletedTask;
+        var results = FilterExperiences(query);
+        return Task.FromResult(Result<IReadOnlyList<Experience>, string>.Success(results));
     }
 
     /// <summary>
     /// Gets an experience by ID.
     /// </summary>
-    public Task<Experience?> GetExperienceAsync(Guid id, CancellationToken ct = default)
+    public Task<Result<Experience, string>> GetExperienceAsync(string id, CancellationToken ct = default)
     {
-        this.experiences.TryGetValue(id, out var experience);
-        return Task.FromResult(experience);
+        if (this.experiences.TryGetValue(id, out var experience))
+        {
+            return Task.FromResult(Result<Experience, string>.Success(experience));
+        }
+
+        return Task.FromResult(Result<Experience, string>.Failure($"Experience '{id}' not found"));
+    }
+
+    /// <summary>
+    /// Deletes an experience from memory.
+    /// </summary>
+    public Task<Result<Unit, string>> DeleteExperienceAsync(string id, CancellationToken ct = default)
+    {
+        this.experiences.Remove(id);
+        return Task.FromResult(Result<Unit, string>.Success(Unit.Value));
+    }
+
+    /// <summary>
+    /// Gets statistics about stored experiences (Result wrapper).
+    /// </summary>
+    public Task<Result<MemoryStatistics, string>> GetStatisticsAsync(CancellationToken ct = default)
+    {
+        var stats = BuildStatistics();
+        return Task.FromResult(Result<MemoryStatistics, string>.Success(stats));
+    }
+
+    /// <summary>
+    /// Gets statistics about stored experiences.
+    /// </summary>
+    public Task<MemoryStatistics> GetStatsAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(BuildStatistics());
+    }
+
+    /// <summary>
+    /// Clears all stored experiences.
+    /// </summary>
+    public Task<Result<Unit, string>> ClearAsync(CancellationToken ct = default)
+    {
+        this.experiences.Clear();
+        this.LastStoredExperience = null;
+        return Task.FromResult(Result<Unit, string>.Success(Unit.Value));
     }
 
     /// <summary>
@@ -137,5 +150,62 @@ public sealed class MockMemoryStore : IMemoryStore
     public void AddExperience(Experience experience)
     {
         this.experiences[experience.Id] = experience;
+    }
+
+    private IReadOnlyList<Experience> FilterExperiences(MemoryQuery query)
+    {
+        var filtered = this.experiences.Values.AsEnumerable();
+
+        if (query.Goal != null)
+        {
+            filtered = filtered.Where(e => e.Goal.Contains(query.Goal, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (query.SuccessOnly == true)
+        {
+            filtered = filtered.Where(e => e.Success);
+        }
+
+        if (query.FromDate.HasValue)
+        {
+            filtered = filtered.Where(e => e.Timestamp >= query.FromDate.Value);
+        }
+
+        if (query.ToDate.HasValue)
+        {
+            filtered = filtered.Where(e => e.Timestamp <= query.ToDate.Value);
+        }
+
+        return filtered
+            .OrderByDescending(e => e.Timestamp)
+            .Take(query.MaxResults)
+            .ToList();
+    }
+
+    private MemoryStatistics BuildStatistics()
+    {
+        var successful = this.experiences.Values.Count(e => e.Success);
+        var failed = this.experiences.Values.Count(e => !e.Success);
+        var uniqueContexts = this.experiences.Values.Select(e => e.Context).Distinct().Count();
+        var uniqueTags = this.experiences.Values.SelectMany(e => e.Tags).Distinct().Count();
+        var oldest = this.experiences.Values.Any()
+            ? this.experiences.Values.Min(e => e.Timestamp)
+            : (DateTime?)null;
+        var newest = this.experiences.Values.Any()
+            ? this.experiences.Values.Max(e => e.Timestamp)
+            : (DateTime?)null;
+        var avgQuality = this.experiences.Values.Any()
+            ? this.experiences.Values.Average(e => e.Verification.QualityScore)
+            : 0.0;
+
+        return new MemoryStatistics(
+            TotalExperiences: this.experiences.Count,
+            SuccessfulExperiences: successful,
+            FailedExperiences: failed,
+            UniqueContexts: uniqueContexts,
+            UniqueTags: uniqueTags,
+            OldestExperience: oldest,
+            NewestExperience: newest,
+            AverageQualityScore: avgQuality);
     }
 }

@@ -4,9 +4,7 @@
 
 namespace Ouroboros.Tests.Mocks;
 
-using Ouroboros.Abstractions.Monads;
 using Ouroboros.Agent.MetaAI;
-using Ouroboros.Core.Monads;
 
 /// <summary>
 /// Mock implementation of IUncertaintyRouter for testing purposes.
@@ -14,7 +12,7 @@ using Ouroboros.Core.Monads;
 /// </summary>
 public sealed class MockUncertaintyRouter : IUncertaintyRouter
 {
-    private readonly Func<string, Dictionary<string, object>?, RoutingDecision>? routingFactory;
+    private readonly Func<string, string, double, RoutingDecision>? routingFactory;
     private readonly double minimumConfidence;
 
     /// <summary>
@@ -32,7 +30,7 @@ public sealed class MockUncertaintyRouter : IUncertaintyRouter
     /// <param name="routingFactory">Factory function for routing decisions.</param>
     /// <param name="minimumConfidence">Minimum confidence threshold.</param>
     public MockUncertaintyRouter(
-        Func<string, Dictionary<string, object>?, RoutingDecision> routingFactory,
+        Func<string, string, double, RoutingDecision> routingFactory,
         double minimumConfidence = 0.7)
     {
         this.routingFactory = routingFactory;
@@ -45,7 +43,7 @@ public sealed class MockUncertaintyRouter : IUncertaintyRouter
     public double MinimumConfidenceThreshold => this.minimumConfidence;
 
     /// <summary>
-    /// Gets the number of times RouteAsync was called.
+    /// Gets the number of times RouteDecisionAsync was called.
     /// </summary>
     public int RouteCallCount { get; private set; }
 
@@ -55,79 +53,84 @@ public sealed class MockUncertaintyRouter : IUncertaintyRouter
     public RoutingDecision? LastDecision { get; private set; }
 
     /// <summary>
-    /// Routes a task based on confidence analysis.
+    /// Routes a decision based on uncertainty level.
     /// </summary>
-    public Task<Result<RoutingDecision, string>> RouteAsync(
-        string task,
-        Dictionary<string, object>? context = null,
+    public Task<RoutingDecision> RouteDecisionAsync(
+        string context,
+        string proposedAction,
+        double confidenceLevel,
         CancellationToken ct = default)
     {
         this.RouteCallCount++;
 
-        if (string.IsNullOrWhiteSpace(task))
-        {
-            return Task.FromResult(Result<RoutingDecision, string>.Failure("Task cannot be empty"));
-        }
-
         RoutingDecision decision;
         if (this.routingFactory != null)
         {
-            decision = this.routingFactory(task, context);
+            decision = this.routingFactory(context, proposedAction, confidenceLevel);
         }
         else
         {
-            // Default: route to "default" with high confidence
+            var shouldProceed = confidenceLevel >= this.minimumConfidence;
+            var strategy = shouldProceed ? FallbackStrategy.Retry : FallbackStrategy.RequestClarification;
+
             decision = new RoutingDecision(
-                Route: "default",
-                Reason: "Default routing for testing",
-                Confidence: 0.9,
-                Metadata: new Dictionary<string, object>());
+                ShouldProceed: shouldProceed,
+                ConfidenceLevel: confidenceLevel,
+                RecommendedStrategy: strategy,
+                Reason: shouldProceed ? "Confidence is sufficient" : "Confidence is below threshold",
+                RequiresHumanOversight: confidenceLevel < 0.3,
+                AlternativeActions: Array.Empty<string>());
         }
 
         this.LastDecision = decision;
-        return Task.FromResult(Result<RoutingDecision, string>.Success(decision));
+        return Task.FromResult(decision);
     }
 
     /// <summary>
-    /// Determines fallback strategy for low-confidence scenarios.
+    /// Determines if human oversight is required.
     /// </summary>
-    public FallbackStrategy DetermineFallback(string task, double confidence)
+    public Task<bool> RequiresHumanOversightAsync(
+        string context,
+        double riskLevel,
+        double confidenceLevel,
+        CancellationToken ct = default)
     {
-        if (confidence >= this.minimumConfidence)
-        {
-            return FallbackStrategy.UseDefault;
-        }
-
-        if (confidence >= 0.5)
-        {
-            return FallbackStrategy.GatherMoreContext;
-        }
-
-        if (confidence >= 0.3)
-        {
-            return FallbackStrategy.DecomposeTask;
-        }
-
-        return FallbackStrategy.RequestClarification;
+        // Require oversight if risk is high or confidence is very low
+        var required = riskLevel > 0.7 || confidenceLevel < 0.3;
+        return Task.FromResult(required);
     }
 
     /// <summary>
-    /// Calculates confidence for a given decision.
+    /// Gets the fallback strategy for a given confidence level.
     /// </summary>
-    public Task<double> CalculateConfidenceAsync(
-        string task,
-        string route,
-        Dictionary<string, object>? context = null)
+    public Task<FallbackStrategy> GetFallbackStrategyAsync(
+        double confidenceLevel,
+        int attemptCount,
+        CancellationToken ct = default)
     {
-        // Default: return high confidence
-        return Task.FromResult(0.85);
-    }
+        FallbackStrategy strategy;
 
-    /// <summary>
-    /// Records routing outcome for metrics.
-    /// </summary>
-    public void RecordRoutingOutcome(RoutingDecision decision, bool success)
-    {
-        // No-op for mock
+        if (attemptCount >= 3)
+        {
+            strategy = FallbackStrategy.EscalateToHuman;
+        }
+        else if (confidenceLevel >= this.minimumConfidence)
+        {
+            strategy = FallbackStrategy.Retry;
+        }
+        else if (confidenceLevel >= 0.5)
+        {
+            strategy = FallbackStrategy.UseConservativeApproach;
+        }
+        else if (confidenceLevel >= 0.3)
+        {
+            strategy = FallbackStrategy.Defer;
+        }
+        else
+        {
+            strategy = FallbackStrategy.RequestClarification;
+        }
+
+        return Task.FromResult(strategy);
     }
 }

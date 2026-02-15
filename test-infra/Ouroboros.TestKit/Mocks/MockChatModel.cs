@@ -4,7 +4,7 @@
 
 namespace Ouroboros.Tests.Mocks;
 
-using Ouroboros.Providers;
+using Ouroboros.Abstractions.Core;
 
 /// <summary>
 /// Mock implementation of IChatCompletionModel for testing purposes.
